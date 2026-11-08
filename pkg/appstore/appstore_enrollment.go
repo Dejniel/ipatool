@@ -29,6 +29,7 @@ type EnrollmentOutput struct {
 	Sinfs             []Sinf
 	App               App
 	ExternalVersionID string
+	NativeProfile     EnrollmentProfile
 }
 
 type enrollmentSession interface {
@@ -151,7 +152,9 @@ func (t *appstore) Enroll(input EnrollmentInput) (out EnrollmentOutput, returnEr
 	}
 	app := input.App
 	app.BundleID, _ = response.Data.Items[0].Metadata["softwareVersionBundleId"].(string)
-	out = EnrollmentOutput{Hardware: bytes.Clone(hardware), Files: files, Sinfs: response.Data.Items[0].Sinfs, App: app, ExternalVersionID: input.ExternalVersionID}
+	product, build := assets.Version()
+	out = EnrollmentOutput{Hardware: bytes.Clone(hardware), Files: files, Sinfs: response.Data.Items[0].Sinfs, App: app, ExternalVersionID: input.ExternalVersionID,
+		NativeProfile: EnrollmentProfile{ProductVersion: product, BuildVersion: build}}
 	if err := validateEnrollmentOutput(out); err != nil {
 		return out, err
 	}

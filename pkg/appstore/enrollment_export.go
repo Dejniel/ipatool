@@ -27,6 +27,11 @@ type EnrollmentLicense struct {
 	File EnrollmentFile `json:"file"`
 }
 
+type EnrollmentProfile struct {
+	ProductVersion string `json:"product_version"`
+	BuildVersion   string `json:"build_version"`
+}
+
 // EnrollmentManifest is an export contract for offline consumers. Successful
 // native import is not a claim that an IPA has been decrypted or verified.
 type EnrollmentManifest struct {
@@ -34,6 +39,7 @@ type EnrollmentManifest struct {
 	AppID                int64               `json:"app_id"`
 	BundleID             string              `json:"bundle_id,omitempty"`
 	ExternalVersionID    string              `json:"external_version_id"`
+	NativeProfile        EnrollmentProfile   `json:"native_profile"`
 	Hardware             EnrollmentFile      `json:"hardware"`
 	State                []EnrollmentFile    `json:"state"`
 	Licenses             []EnrollmentLicense `json:"licenses"`
@@ -55,6 +61,9 @@ func enrollmentStatePath(virtual string) (string, error) {
 }
 
 func validateEnrollmentOutput(out EnrollmentOutput) error {
+	if out.NativeProfile.ProductVersion == "" || out.NativeProfile.BuildVersion == "" {
+		return errors.New("enrollment export requires native profile provenance")
+	}
 	if len(out.Hardware) != 6 || out.App.ID <= 0 || out.ExternalVersionID == "" || len(out.Files) == 0 || len(out.Files) > 4 || len(out.Sinfs) == 0 || len(out.Sinfs) > 64 {
 		return errors.New("incomplete enrollment export material")
 	}
@@ -121,7 +130,8 @@ func WriteEnrollment(ctx context.Context, directory string, out EnrollmentOutput
 		digest := sha256.Sum256(data)
 		return EnrollmentFile{Path: relative, Bytes: len(data), SHA256: hex.EncodeToString(digest[:])}, nil
 	}
-	manifest = EnrollmentManifest{Schema: EnrollmentSchema, AppID: out.App.ID, BundleID: out.App.BundleID, ExternalVersionID: out.ExternalVersionID, NativeImportComplete: true}
+	manifest = EnrollmentManifest{Schema: EnrollmentSchema, AppID: out.App.ID, BundleID: out.App.BundleID, ExternalVersionID: out.ExternalVersionID,
+		NativeProfile: out.NativeProfile, NativeImportComplete: true}
 	if manifest.Hardware, err = write("hardware.bin", out.Hardware); err != nil {
 		return EnrollmentManifest{}, err
 	}

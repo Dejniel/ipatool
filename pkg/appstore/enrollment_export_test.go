@@ -11,7 +11,7 @@ import (
 )
 
 func syntheticEnrollment() EnrollmentOutput {
-	return EnrollmentOutput{Hardware: []byte{0, 17, 34, 51, 68, 85}, App: App{ID: 42, BundleID: "example.test"}, ExternalVersionID: "123", Files: map[string][]byte{"/var/db/fpsd/SC Info/SC Info.sidb": []byte("synthetic SIDB")}, Sinfs: []Sinf{{ID: 0, Data: []byte("synthetic license")}}}
+	return EnrollmentOutput{Hardware: []byte{0, 17, 34, 51, 68, 85}, App: App{ID: 42, BundleID: "example.test"}, ExternalVersionID: "123", NativeProfile: EnrollmentProfile{ProductVersion: "test-product", BuildVersion: "test-build"}, Files: map[string][]byte{"/var/db/fpsd/SC Info/SC Info.sidb": []byte("synthetic SIDB")}, Sinfs: []Sinf{{ID: 0, Data: []byte("synthetic license")}}}
 }
 
 func TestEnrollmentExportIsPrivateHashedAndNeverReplacesState(t *testing.T) {
@@ -20,7 +20,7 @@ func TestEnrollmentExportIsPrivateHashedAndNeverReplacesState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Schema != EnrollmentSchema || !manifest.NativeImportComplete {
+	if manifest.Schema != EnrollmentSchema || !manifest.NativeImportComplete || manifest.NativeProfile != syntheticEnrollment().NativeProfile {
 		t.Fatal("incomplete manifest")
 	}
 	for _, file := range append(append([]EnrollmentFile{manifest.Hardware}, manifest.State...), manifest.Licenses[0].File) {
@@ -54,6 +54,18 @@ func TestEnrollmentExportIsPrivateHashedAndNeverReplacesState(t *testing.T) {
 	}
 	if _, err := WriteEnrollment(context.Background(), dir, syntheticEnrollment()); err == nil {
 		t.Fatal("existing export was overwritten")
+	}
+}
+
+func TestEnrollmentExportRequiresNativeProfile(t *testing.T) {
+	out := syntheticEnrollment()
+	out.NativeProfile = EnrollmentProfile{}
+	dir := filepath.Join(t.TempDir(), "export")
+	if _, err := WriteEnrollment(context.Background(), dir, out); err == nil {
+		t.Fatal("missing native profile accepted")
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatal("invalid material created output")
 	}
 }
 

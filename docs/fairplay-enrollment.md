@@ -74,6 +74,7 @@ nonempty for a successful export.
 | Field | Meaning |
 | --- | --- |
 | `app_id`, `bundle_id`, `external_version_id` | Validated target identity |
+| `native_profile` | `product_version` and `build_version` of the pinned native image, never the host OS |
 | `hardware` | File record for the six-byte hardware identity |
 | `state` | File records, including original virtual SC Info paths |
 | `licenses` | Response SINF records, preserving their numeric IDs |

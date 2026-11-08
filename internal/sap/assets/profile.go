@@ -6,6 +6,9 @@ import "howett.net/plist"
 // are used. A caller-supplied bundle must obey the same contract as Load.
 func Validate(bundle Bundle) error { return validate(bundle) }
 
+// Version identifies the pinned native image, not the host running ipatool.
+func Version() (product, build string) { return macOSVersion, macOSBuild }
+
 // SystemVersion describes the pinned image, never the analyst's host system.
 func SystemVersion() ([]byte, error) {
 	return plist.Marshal(map[string]string{"ProductVersion": macOSVersion, "ProductBuildVersion": macOSBuild, "ProductName": "macOS"}, plist.XMLFormat)
