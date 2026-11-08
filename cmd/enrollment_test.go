@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -27,7 +28,10 @@ func (s *enrollmentCommandStore) Enroll(input appstore.EnrollmentInput) (appstor
 	if input.App.ID != 42 || input.ExternalVersionID != "123" || input.Context == nil {
 		return appstore.EnrollmentOutput{}, errors.New("invalid command input")
 	}
-	return appstore.EnrollmentOutput{App: input.App, ExternalVersionID: input.ExternalVersionID, Hardware: []byte{0, 17, 34, 51, 68, 85}, Files: map[string][]byte{"/var/db/fpsd/SC Info/SC Info.sidb": []byte("synthetic state")}, Sinfs: []appstore.Sinf{{Data: []byte("synthetic license")}}}, s.fail
+	return appstore.EnrollmentOutput{App: input.App, ExternalVersionID: input.ExternalVersionID,
+		NativeProfile: appstore.EnrollmentProfile{ProductVersion: "test-product", BuildVersion: "test-build"},
+		Hardware:      []byte{0, 17, 34, 51, 68, 85}, Files: map[string][]byte{"/var/db/fpsd/SC Info/SC Info.sidb": []byte("synthetic state")},
+		Sinfs: []appstore.Sinf{{Data: []byte("synthetic license")}}}, s.fail
 }
 
 func TestEnrollmentCommandExportsWithoutLoggingPrivateMaterial(t *testing.T) {
@@ -46,8 +50,16 @@ func TestEnrollmentCommandExportsWithoutLoggingPrivateMaterial(t *testing.T) {
 	if store.accountCalls != 1 || store.enrollmentCalls != 1 {
 		t.Fatal("unexpected account or enrollment calls")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
+	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
 		t.Fatal(err)
+	}
+	var manifest appstore.EnrollmentManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.NativeProfile.ProductVersion != "test-product" || manifest.NativeProfile.BuildVersion != "test-build" {
+		t.Fatal("native profile provenance was not exported by the CLI")
 	}
 	if bytes.Contains(output.Bytes(), []byte("synthetic")) {
 		t.Fatal("private material appeared in CLI output")
