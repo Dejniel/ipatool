@@ -2,7 +2,9 @@ package assets
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
+	"compress/flate"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -30,6 +32,7 @@ func extractFairPlayKext(archive *zip.Reader, destination string) error {
 	if err != nil {
 		return err
 	}
+	bufferRemoteDeflate(archive)
 
 	reader, err := entry.Open()
 	if err != nil {
@@ -140,6 +143,14 @@ func extractFairPlayKext(archive *zip.Reader, destination string) error {
 	}
 
 	return nil
+}
+
+// Deflate otherwise pulls a remote ZIP member in roughly 4 KiB reads. Keep ZIP
+// checksum/size validation while batching those reads into bounded HTTP ranges.
+func bufferRemoteDeflate(archive *zip.Reader) {
+	archive.RegisterDecompressor(zip.Deflate, func(reader io.Reader) io.ReadCloser {
+		return flate.NewReader(bufio.NewReaderSize(reader, 1<<20))
+	})
 }
 
 func im4pPayload(data []byte) ([]byte, error) {
