@@ -29,10 +29,10 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Version:       version,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			ctx := context.WithValue(context.Background(), interactiveKey, !nonInteractive)
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.WithValue(cmd.Context(), interactiveKey, !nonInteractive)
 			cmd.SetContext(ctx)
-			initWithCommand(cmd)
+			return initWithCommand(cmd)
 		},
 	}
 
@@ -44,6 +44,7 @@ func rootCmd() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enables verbose logs")
 	cmd.PersistentFlags().BoolVarP(&nonInteractive, "non-interactive", "", false, "run in non-interactive session")
 	cmd.PersistentFlags().StringVar(&keychainPassphrase, "keychain-passphrase", "", "passphrase for unlocking keychain")
+	cmd.PersistentFlags().StringVar(&stateDirectoryOverride, "state-directory", "", "absolute private profile directory; never migrates existing sessions")
 
 	cmd.AddCommand(authCmd())
 	cmd.AddCommand(downloadCmd())
@@ -64,7 +65,9 @@ func Execute() int {
 
 	if err != nil {
 		if reflect.ValueOf(dependencies).IsZero() {
-			initWithCommand(cmd)
+			if initErr := initWithCommand(cmd); initErr != nil {
+				err = errors.Join(err, initErr)
+			}
 		}
 
 		var appstoreErr *appstore.Error

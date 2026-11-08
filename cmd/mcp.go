@@ -19,9 +19,9 @@ func mcpCmd() *cobra.Command {
 			"Authenticate with 'ipatool auth login' before using the tools.\n" +
 			"Runs non-interactively; authentication tools are not exposed.",
 		Args: cobra.NoArgs,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SetContext(context.WithValue(cmd.Context(), interactiveKey, false))
-			initWithCommand(cmd)
+			return initWithCommand(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)

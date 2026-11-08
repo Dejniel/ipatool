@@ -1,12 +1,49 @@
 package cmd
 
 import (
+	"crypto/sha256"
 	"fmt"
+	stdos "os"
 	"path/filepath"
 	"strings"
 
 	"github.com/majd/ipatool/v2/pkg/util/operatingsystem"
 )
+
+func resolveStateDirectory(os operatingsystem.OperatingSystem, home, explicit string) (string, error) {
+	if explicit == "" {
+		return prepareStateDirectory(os, home)
+	}
+	if !filepath.IsAbs(explicit) {
+		return "", fmt.Errorf("--state-directory must be absolute")
+	}
+	path := filepath.Clean(explicit)
+	info, err := stdos.Lstat(path)
+	if stdos.IsNotExist(err) {
+		if err := stdos.MkdirAll(path, 0700); err != nil {
+			return "", fmt.Errorf("create private profile: %w", err)
+		}
+		info, err = stdos.Lstat(path)
+	}
+	if err != nil {
+		return "", fmt.Errorf("inspect private profile: %w", err)
+	}
+	if !info.IsDir() || info.Mode()&stdos.ModeSymlink != 0 || info.Mode().Perm() != 0700 {
+		return "", fmt.Errorf("--state-directory must be a private directory (mode 0700), not a symlink: %s", path)
+	}
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve private profile: %w", err)
+	}
+	return canonical, nil
+}
+
+func keychainNamespace(stateDirectory string) string {
+	if stateDirectoryOverride == "" {
+		return KeychainServiceName
+	}
+	return fmt.Sprintf("%s/profile/%x", KeychainServiceName, sha256.Sum256([]byte(stateDirectory)))
+}
 
 // prepareStateDirectory resolves and migrates session storage before it is opened.
 func prepareStateDirectory(os operatingsystem.OperatingSystem, homeDirectory string) (string, error) {

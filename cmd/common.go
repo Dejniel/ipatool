@@ -23,6 +23,7 @@ import (
 
 var dependencies = Dependencies{}
 var keychainPassphrase string
+var stateDirectoryOverride string
 
 type Dependencies struct {
 	Logger    log.Logger
@@ -58,15 +59,15 @@ func newCookieJar(stateDirectory string) http.CookieJar {
 	}))
 }
 
-// newKeychain returns a new keychain instance.
-func newKeychain(stateDirectory string, interactive bool) keychain.Keychain {
+func newDefaultKeychain(stateDirectory string, interactive bool) keychain.Keychain {
+	serviceName := keychainNamespace(stateDirectory)
 	ring := util.Must(openKeyring(keyring.Config{
 		AllowedBackends: []keyring.BackendType{
 			keyring.KeychainBackend,
 			keyring.SecretServiceBackend,
 			keyring.FileBackend,
 		},
-		ServiceName:              KeychainServiceName,
+		ServiceName:              serviceName,
 		KeychainTrustApplication: true,
 		FileDir:                  stateDirectory,
 		FilePasswordFunc: func(s string) (string, error) {
@@ -90,12 +91,12 @@ func newKeychain(stateDirectory string, interactive bool) keychain.Keychain {
 
 	return keychain.New(keychain.Args{
 		Keyring: ring,
-		Label:   KeychainServiceName,
+		Label:   serviceName,
 	})
 }
 
 // initWithCommand initializes the dependencies of the command.
-func initWithCommand(cmd *cobra.Command) {
+func initWithCommand(cmd *cobra.Command) error {
 	verbose := cmd.Flag("verbose").Value.String() == "true"
 	interactive, _ := cmd.Context().Value(interactiveKey).(bool)
 	format := util.Must(OutputFormatFromString(cmd.Flag("format").Value.String()))
@@ -107,7 +108,10 @@ func initWithCommand(cmd *cobra.Command) {
 
 	dependencies.OS = operatingsystem.New()
 	dependencies.Machine = machine.New(machine.Args{OS: dependencies.OS})
-	stateDirectory := util.Must(prepareStateDirectory(dependencies.OS, dependencies.Machine.HomeDirectory()))
+	stateDirectory, err := resolveStateDirectory(dependencies.OS, dependencies.Machine.HomeDirectory(), stateDirectoryOverride)
+	if err != nil {
+		return err
+	}
 	dependencies.CookieJar = newCookieJar(stateDirectory)
 	dependencies.Keychain = newKeychain(stateDirectory, interactive)
 	dependencies.AppStore = appstore.NewAppStore(appstore.Args{
@@ -116,4 +120,5 @@ func initWithCommand(cmd *cobra.Command) {
 		Keychain:        dependencies.Keychain,
 		Machine:         dependencies.Machine,
 	})
+	return nil
 }

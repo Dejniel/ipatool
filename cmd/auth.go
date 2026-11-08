@@ -19,6 +19,7 @@ func authCmd() *cobra.Command {
 	cmd.AddCommand(loginCmd())
 	cmd.AddCommand(infoCmd())
 	cmd.AddCommand(revokeCmd())
+	cmd.AddCommand(keyringCheckCmd())
 
 	return cmd
 }
@@ -31,6 +32,9 @@ func loginCmd() *cobra.Command {
 		Short: "Login to the App Store",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := cmd.Context().Value(interactiveKey).(bool)
+			if err := preflightKeychain(); err != nil {
+				return err
+			}
 
 			if email == "" && !interactive {
 				return errors.New("an Apple ID is required when not running in interactive mode; use the \"--email\" flag")
