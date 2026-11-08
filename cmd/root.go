@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	"github.com/majd/ipatool/v2/pkg/appstore"
 	"github.com/spf13/cobra"
@@ -48,6 +47,7 @@ func rootCmd() *cobra.Command {
 
 	cmd.AddCommand(authCmd())
 	cmd.AddCommand(downloadCmd())
+	cmd.AddCommand(enrollmentCmd())
 	cmd.AddCommand(listPurchasesCmd())
 	cmd.AddCommand(purchaseCmd())
 	cmd.AddCommand(searchCmd())
@@ -64,10 +64,12 @@ func Execute() int {
 	err := cmd.Execute()
 
 	if err != nil {
-		if reflect.ValueOf(dependencies).IsZero() {
-			if initErr := initWithCommand(cmd); initErr != nil {
-				err = errors.Join(err, initErr)
+		if dependencies.Logger == nil {
+			format, parseErr := OutputFormatFromString(cmd.Flag("format").Value.String())
+			if parseErr != nil {
+				format = OutputFormatText
 			}
+			dependencies.Logger = newLogger(format, cmd.Flag("verbose").Value.String() == "true")
 		}
 
 		var appstoreErr *appstore.Error

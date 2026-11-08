@@ -53,10 +53,14 @@ func newLogger(format OutputFormat, verbose bool) log.Logger {
 }
 
 // newCookieJar returns a new cookie jar instance.
-func newCookieJar(stateDirectory string) http.CookieJar {
-	return util.Must(cookiejar.New(&cookiejar.Options{
+func newCookieJar(stateDirectory string) (http.CookieJar, error) {
+	jar, err := cookiejar.New(&cookiejar.Options{
 		Filename: filepath.Join(stateDirectory, CookieJarFileName),
-	}))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open profile cookies: %w", err)
+	}
+	return jar, nil
 }
 
 func newDefaultKeychain(stateDirectory string, interactive bool) keychain.Keychain {
@@ -112,7 +116,10 @@ func initWithCommand(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	dependencies.CookieJar = newCookieJar(stateDirectory)
+	dependencies.CookieJar, err = newCookieJar(stateDirectory)
+	if err != nil {
+		return err
+	}
 	dependencies.Keychain = newKeychain(stateDirectory, interactive)
 	dependencies.AppStore = appstore.NewAppStore(appstore.Args{
 		CookieJar:       dependencies.CookieJar,

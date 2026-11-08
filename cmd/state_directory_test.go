@@ -70,7 +70,8 @@ var _ = Describe("State directory", func() {
 		cookieURL, err := url.Parse("https://apps.apple.com/")
 		Expect(err).ToNot(HaveOccurred())
 
-		jar := newCookieJar(legacy)
+		jar, err := newCookieJar(legacy)
+		Expect(err).ToNot(HaveOccurred())
 		jar.SetCookies(cookieURL, []*http.Cookie{{Name: "session", Value: "existing-cookie", Path: "/", Expires: time.Now().Add(time.Hour)}})
 		Expect(jar.Save()).To(Succeed())
 
@@ -90,7 +91,9 @@ var _ = Describe("State directory", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(after).To(Equal(before), "encrypted credentials must remain unchanged")
 
-			cookies := newCookieJar(directory).Cookies(cookieURL)
+			jar, err := newCookieJar(directory)
+			Expect(err).ToNot(HaveOccurred())
+			cookies := jar.Cookies(cookieURL)
 			Expect(cookies).To(HaveLen(1))
 			Expect(cookies[0].Name).To(Equal("session"))
 			Expect(cookies[0].Value).To(Equal("existing-cookie"))
