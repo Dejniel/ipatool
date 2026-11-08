@@ -68,6 +68,13 @@ Use "ipatool [command] --help" for more information about a command.
 **Note:** the tool runs in interactive mode by default. Use the `--non-interactive` flag
 if running in an automated environment.
 
+### FairPlay enrollment
+
+For private offline analysis of an already licensed iOS app, `ipatool enroll`
+exports native FairPlay state and matching licenses without decrypting the IPA.
+See [the enrollment workflow and export contract](docs/fairplay-enrollment.md)
+and [native Store authentication](AMD_RUNTIME.md).
+
 ### MCP tools
 
 Run `ipatool auth login` in a terminal, then configure your MCP client to launch the stdio server:
