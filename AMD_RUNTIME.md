@@ -1,9 +1,12 @@
-# Native Store AMD Branch
+# Native Store AMD Fork
 
-Local branch `amd-runtime` starts at upstream
+This is the local working copy of public fork
+[`Dejniel/ipatool`](https://github.com/Dejniel/ipatool), based on upstream
 [`001d889896fcb118546443c5dfe0997d11b74f56`](https://github.com/majd/ipatool/commit/001d889896fcb118546443c5dfe0997d11b74f56).
-It is not a fork of the earlier C++-helper experiment. The branch has not been
-pushed, and `origin` still points to `majd/ipatool`.
+`origin` points to the fork; `upstream` points to `majd/ipatool`. AMD changes are
+committed on local `main` but have not been pushed. The public fork currently
+contains upstream code only. This work is independent of the earlier
+C++-helper experiment.
 
 ## Scope and Status
 
