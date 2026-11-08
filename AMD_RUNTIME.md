@@ -38,6 +38,20 @@ The canonical profile path selects its keychain namespace: keep that path
 stable. Without an explicit profile, upstream platform backend selection and
 state-directory behavior remain unchanged.
 
+`auth status` reports the local `ipatool-auth-status-v1` contract with
+`session_available`; it does not contact Apple, disclose account fields or
+guarantee that a saved token is still accepted. This lets an orchestrator decide
+when to invoke the ordinary interactive `auth login` command. Credentials and
+AMD state remain persistent in the selected profile; status does not clear them.
+
+With `--format json`, command failures include a machine-readable `code`:
+`session-missing`, `session-expired`, `auth-code-required`, `license-required`,
+or `command-failed`. Wrapped errors retain their classification. `download
+--no-reauth` returns token expiry instead of attempting saved-password login,
+so a caller can expose login/2FA on the terminal. Without this flag, download
+retains its existing automatic-refresh policy. Enrollment never retries itself;
+known session/license failures are classified before private material import.
+
 ## Validation
 
 On Linux, anonymous native Store provisioning, AMD generation, reopening a saved

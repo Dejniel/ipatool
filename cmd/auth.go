@@ -18,6 +18,7 @@ func authCmd() *cobra.Command {
 
 	cmd.AddCommand(loginCmd())
 	cmd.AddCommand(infoCmd())
+	cmd.AddCommand(statusCmd())
 	cmd.AddCommand(revokeCmd())
 	cmd.AddCommand(keyringCheckCmd())
 

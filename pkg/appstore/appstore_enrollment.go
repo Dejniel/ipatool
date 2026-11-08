@@ -131,12 +131,24 @@ func (t *appstore) Enroll(input EnrollmentInput) (out EnrollmentOutput, returnEr
 	progress("authorizing app download")
 	response, err := t.sendEntDownloadRequest(ctx, endpoint, input.Account, input.App, guid, input.ExternalVersionID, hardware, base64.StdEncoding.EncodeToString(blob))
 	defer clear(response.Data.Keybag)
+	if ctx.Err() != nil {
+		return out, ctx.Err()
+	}
+	switch response.Data.FailureType {
+	case FailureTypePasswordTokenExpired, FailureTypeSignInRequired, FailureTypeDeviceVerificationFailed:
+		return out, ErrPasswordTokenExpired
+	case FailureTypeLicenseNotFound:
+		return out, ErrLicenseRequired
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return out, ctx.Err()
 		}
 		// Do not attach HTTP result metadata, cookies or license payloads to a
 		// diagnostic error. Callers can reauthenticate explicitly when necessary.
+		if errors.Is(err, ErrPasswordTokenExpired) || errors.Is(err, ErrLicenseRequired) {
+			return out, err
+		}
 		return out, errors.New("enrollment authorization failed; verify the account, app license, version and network")
 	}
 	if len(response.Data.Keybag) < 8 || len(response.Data.Keybag) > 1<<20 || len(response.Data.Items) != 1 || len(response.Data.Items[0].Sinfs) == 0 {

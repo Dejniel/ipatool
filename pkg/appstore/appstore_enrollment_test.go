@@ -35,7 +35,7 @@ func (s *enrollmentTestSession) Close() error {
 }
 
 func TestEnrollmentUsesOneLiveSessionWithoutRetryOrCachedBlob(t *testing.T) {
-	for _, scenario := range []string{"success", "authorization failure", "missing keybag", "import failure", "close failure"} {
+	for _, scenario := range []string{"success", "authorization failure", "expired session", "missing license", "missing keybag", "import failure", "close failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			host := machine.NewMockMachine(ctrl)
@@ -60,6 +60,12 @@ func TestEnrollmentUsesOneLiveSessionWithoutRetryOrCachedBlob(t *testing.T) {
 				if scenario == "authorization failure" {
 					return http.Result[downloadResult]{}, errors.New("synthetic private token must not leak")
 				}
+				if scenario == "expired session" {
+					return http.Result[downloadResult]{Data: downloadResult{FailureType: FailureTypeSignInRequired}}, nil
+				}
+				if scenario == "missing license" {
+					return http.Result[downloadResult]{Data: downloadResult{FailureType: FailureTypeLicenseNotFound}}, nil
+				}
 				bag := []byte("synthetic keybag")
 				if scenario == "missing keybag" {
 					bag = nil
@@ -75,7 +81,7 @@ func TestEnrollmentUsesOneLiveSessionWithoutRetryOrCachedBlob(t *testing.T) {
 			}}
 			out, err := store.Enroll(EnrollmentInput{Context: context.Background(), Account: Account{DirectoryServicesID: "1234", PasswordToken: "synthetic"}, App: App{ID: 42}, ExternalVersionID: "123"})
 			want := []string{"open", "kbsync", "authorize", "import", "close"}
-			if scenario == "authorization failure" || scenario == "missing keybag" {
+			if scenario == "authorization failure" || scenario == "missing keybag" || scenario == "expired session" || scenario == "missing license" {
 				want = []string{"open", "kbsync", "authorize", "close"}
 			}
 			if !reflect.DeepEqual(events, want) {
@@ -92,6 +98,12 @@ func TestEnrollmentUsesOneLiveSessionWithoutRetryOrCachedBlob(t *testing.T) {
 			}
 			if err != nil && bytes.Contains([]byte(err.Error()), []byte("private token")) {
 				t.Fatal("private authorization diagnostic leaked")
+			}
+			if scenario == "expired session" && !errors.Is(err, ErrPasswordTokenExpired) {
+				t.Fatal("lost typed session expiry")
+			}
+			if scenario == "missing license" && !errors.Is(err, ErrLicenseRequired) {
+				t.Fatal("lost typed license error")
 			}
 		})
 	}

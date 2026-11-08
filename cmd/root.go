@@ -84,6 +84,7 @@ func Execute() int {
 
 		dependencies.Logger.Error().
 			Err(err).
+			Str("code", commandErrorCode(err)).
 			Bool("success", false).
 			Send()
 

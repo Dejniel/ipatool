@@ -20,6 +20,7 @@ func downloadCmd() *cobra.Command {
 func downloadCmdWithAppStore(appStore func() appstore.AppStore) *cobra.Command {
 	var (
 		acquireLicense    bool
+		noReauth          bool
 		outputPath        string
 		appID             int64
 		bundleID          string
@@ -153,7 +154,7 @@ func downloadCmdWithAppStore(appStore func() appstore.AppStore) *cobra.Command {
 				retry.RetryIf(func(err error) bool {
 					lastErr = err
 
-					if errors.Is(err, appstore.ErrPasswordTokenExpired) {
+					if errors.Is(err, appstore.ErrPasswordTokenExpired) && !noReauth {
 						return true
 					}
 
@@ -173,6 +174,7 @@ func downloadCmdWithAppStore(appStore func() appstore.AppStore) *cobra.Command {
 	cmd.Flags().StringVar(&externalVersionID, "external-version-id", "", "External version identifier of the target app (defaults to latest version when not specified)")
 	cmd.Flags().StringVar(&platformValue, "platform", "", "Platform to download for: iphone (iOS), ipad (iPadOS), appletv (tvOS), watchos, visionos, or macos")
 	cmd.Flags().BoolVar(&acquireLicense, "purchase", false, "Obtain a license for the app if needed")
+	cmd.Flags().BoolVar(&noReauth, "no-reauth", false, "Return session expiry instead of automatically logging in with saved credentials")
 
 	return cmd
 }
