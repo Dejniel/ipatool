@@ -63,7 +63,9 @@ type appstore struct {
 	authBackend           *store.Backend
 	authHTTP              *gohttp.Client
 	authStateMu           sync.Mutex
-	anisetteState         []byte
+	storeAMDState         []byte
+	amdProvisioner        storeAMDProvisioner
+	amdHeaderGenerator    storeAMDHeaderGenerator
 	authenticationHeaders gohttp.Header
 }
 
@@ -113,6 +115,8 @@ func NewAppStore(args Args) AppStore {
 		os:                  args.OperatingSystem,
 		authBackend:         backend,
 		authHTTP:            authHTTP,
+		amdProvisioner:      storeauth.ProvisionStoreAMD,
+		amdHeaderGenerator:  storeauth.StoreAMDHeaders,
 	}
 }
 

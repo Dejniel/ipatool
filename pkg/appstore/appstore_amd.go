@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	gohttp "net/http"
 	"net/url"
 	"strings"
 
-	"github.com/majd/ipatool/v2/internal/storeauth"
+	"github.com/majd/ipatool/v2/pkg/keychain"
 )
+
+type storeAMDProvisioner func(context.Context, *gohttp.Client, []byte, []byte) ([]byte, error)
+type storeAMDHeaderGenerator func(context.Context, []byte, string, []byte) (map[string]string, []byte, error)
 
 func (t *appstore) storeAMDProof(ctx context.Context, endpoint string, hardwareID []byte) (map[string]string, error) {
 	if ctx == nil {
@@ -26,11 +30,17 @@ func (t *appstore) storeAMDProof(ctx context.Context, endpoint string, hardwareI
 	t.authStateMu.Lock()
 	defer t.authStateMu.Unlock()
 
-	if len(t.anisetteState) == 0 && t.keychain != nil {
-		t.anisetteState, _ = t.keychain.Get(anisetteKeychainKey)
+	if err := t.loadStoreAMDState(); err != nil {
+		return nil, err
 	}
+	return t.refreshStoreAMDProof(ctx, endpoint, hardwareID)
+}
 
-	proof, state, err := storeauth.StoreAMDHeaders(ctx, t.anisetteState, endpoint, hardwareID)
+func (t *appstore) refreshStoreAMDProof(ctx context.Context, endpoint string, hardwareID []byte) (map[string]string, error) {
+	if t.amdHeaderGenerator == nil {
+		return nil, errors.New("Store AMD header generator is not configured")
+	}
+	proof, state, err := t.amdHeaderGenerator(ctx, t.storeAMDState, endpoint, hardwareID)
 	if err != nil {
 		return nil, fmt.Errorf("generate Store AMD proof: %w", err)
 	}
@@ -39,13 +49,31 @@ func (t *appstore) storeAMDProof(ctx context.Context, endpoint string, hardwareI
 		return nil, errors.New("keychain is not configured")
 	}
 
-	if err = t.keychain.Set(anisetteKeychainKey, state); err != nil {
+	if err = t.keychain.Set(storeAMDKeychainKey, state); err != nil {
 		return nil, fmt.Errorf("save Store AMD state: %w", err)
 	}
 
-	t.anisetteState = state
+	t.storeAMDState = state
 
 	return proof, nil
+}
+
+func (t *appstore) loadStoreAMDState() error {
+	if t.keychain == nil {
+		return errors.New("keychain is not configured")
+	}
+	if len(t.storeAMDState) != 0 {
+		return nil
+	}
+	state, err := t.keychain.Get(storeAMDKeychainKey)
+	if errors.Is(err, keychain.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read Store AMD state: %w", err)
+	}
+	t.storeAMDState = state
+	return nil
 }
 
 func isStoreAMDCommerceURL(endpoint string) bool {

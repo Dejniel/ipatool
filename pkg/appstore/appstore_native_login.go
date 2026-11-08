@@ -1,4 +1,3 @@
-//nolint:nlreturn,wsl // Authentication steps are intentionally kept in protocol order.
 package appstore
 
 import (
@@ -6,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	"github.com/majd/ipatool/v2/internal/storeauth"
 )
 
-const anisetteKeychainKey = "anisette-v4"
+const storeAMDKeychainKey = "store-amd-v1"
 
 func (t *appstore) nativeLogin(input LoginInput) (LoginOutput, error) {
+	if _, err := normalizeAuthCode(input.AuthCode); err != nil {
+		return LoginOutput{}, err
+	}
 	t.authStateMu.Lock()
 	defer t.authStateMu.Unlock()
-	if len(t.anisetteState) == 0 && t.keychain != nil {
-		t.anisetteState, _ = t.keychain.Get(anisetteKeychainKey)
+	if err := t.loadStoreAMDState(); err != nil {
+		return LoginOutput{}, err
 	}
 	ctx := context.Background()
 	macAddress, err := t.machine.MacAddress()
@@ -31,77 +31,28 @@ func (t *appstore) nativeLogin(input LoginInput) (LoginOutput, error) {
 	if err != nil {
 		return LoginOutput{}, fmt.Errorf("get Store authentication bag: %w", err)
 	}
-	if len(t.anisetteState) != 0 {
-		proof, state, proofErr := storeauth.StoreAMDHeaders(ctx, t.anisetteState, bag.AuthEndpoint, hardwareID)
-		if proofErr == nil {
-			if err = t.keychain.Set(anisetteKeychainKey, state); err != nil {
-				return LoginOutput{}, fmt.Errorf("save Apple authentication state: %w", err)
-			}
-			t.anisetteState = state
-			t.authenticationHeaders = make(http.Header)
-			for key, value := range proof {
-				t.authenticationHeaders.Set(key, value)
-			}
-			defer func() { t.authenticationHeaders = nil }()
-
-			return t.legacyLogin(input)
+	if len(t.storeAMDState) == 0 {
+		if t.amdProvisioner == nil {
+			return LoginOutput{}, errors.New("Store AMD provisioner is not configured")
 		}
+		state, err := t.amdProvisioner(ctx, t.authHTTP, nil, hardwareID)
+		if err != nil {
+			return LoginOutput{}, fmt.Errorf("provision Store AMD identity: %w", err)
+		}
+		if err := t.keychain.Set(storeAMDKeychainKey, state); err != nil {
+			return LoginOutput{}, fmt.Errorf("save Store AMD provisioning: %w", err)
+		}
+		t.storeAMDState = state
 	}
-	headers, state, err := storeauth.AnisetteHeaders(ctx, t.authHTTP, t.anisetteState)
+	proof, err := t.refreshStoreAMDProof(ctx, bag.AuthEndpoint, hardwareID)
 	if err != nil {
-		return LoginOutput{}, fmt.Errorf("prepare Apple authentication: %w", err)
+		return LoginOutput{}, err
 	}
-	if t.keychain == nil {
-		return LoginOutput{}, errors.New("keychain is not configured")
+	t.authenticationHeaders = make(http.Header)
+	for name, value := range proof {
+		t.authenticationHeaders.Set(name, value)
 	}
-	if err = t.keychain.Set(anisetteKeychainKey, state); err != nil {
-		return LoginOutput{}, fmt.Errorf("save Apple authentication state: %w", err)
-	}
-	t.anisetteState = state
-	t.authenticationHeaders = headers.Clone()
 	defer func() { t.authenticationHeaders = nil }()
-
-	output, err := t.legacyLogin(input)
-	var action *authenticationMachineActionError
-	if !errors.As(err, &action) || action.action != "RP" {
-		return output, err
-	}
-
-	for _, key := range []string{"X-Apple-I-MD", "X-Apple-I-MD-M", "X-Apple-I-MD-RINFO"} {
-		t.authenticationHeaders.Del(key)
-	}
-
-	output, err = t.legacyLogin(input)
-	if !errors.As(err, &action) || action.action != "SP" {
-		return output, err
-	}
-
-	kbsync, err := t.generateKBSync(ctx, hardwareID, ^uint64(1))
-	if err != nil {
-		return LoginOutput{}, fmt.Errorf("generate Apple Store provisioning kbsync: %w", err)
-	}
-	state, err = storeauth.ProvisionStoreAnisette(ctx, t.authHTTP, state, action.data, privateAppStoreProvisioningURL, storeAuthenticationUserAgent, kbsync, hardwareID, headers)
-	if err != nil {
-		return LoginOutput{}, fmt.Errorf("complete Apple Store provisioning: %w", err)
-	}
-	if err = t.keychain.Set(anisetteKeychainKey, state); err != nil {
-		return LoginOutput{}, fmt.Errorf("save Apple authentication state: %w", err)
-	}
-	t.anisetteState = state
-	proof, nextState, proofErr := storeauth.StoreAMDHeaders(ctx, state, bag.AuthEndpoint, hardwareID)
-	if proofErr != nil {
-		return LoginOutput{}, fmt.Errorf("prepare Store AMD proof: %w", proofErr)
-	}
-	state = nextState
-	headers = make(http.Header)
-	for key, value := range proof {
-		headers.Set(key, value)
-	}
-	if err = t.keychain.Set(anisetteKeychainKey, state); err != nil {
-		return LoginOutput{}, fmt.Errorf("save Store AMD state: %w", err)
-	}
-	t.anisetteState = state
-	t.authenticationHeaders = headers.Clone()
 
 	return t.legacyLogin(input)
 }
