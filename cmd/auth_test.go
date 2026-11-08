@@ -90,17 +90,55 @@ var _ = Describe("Login command", func() {
 		Entry("reads a phone number without requiring a terminal", "+91 91234-56789\n", "+91 91234-56789", ""),
 		Entry("reports input errors", "", "", "failed to read Apple ID: failed to read input: EOF"),
 	)
+
+	DescribeTable("handles the explicit 2FA menu", func(input string, interactive, delivery bool, expectedCode string) {
+		store.loginErrors = []error{appstore.ErrAuthCodeRequired}
+		dir := GinkgoT().TempDir()
+		path := filepath.Join(dir, "stdin")
+		Expect(os.WriteFile(path, []byte(input), 0o600)).To(Succeed())
+		stdin, err := os.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(stdin.Close)
+		stderr, err := os.Create(filepath.Join(dir, "stderr"))
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(stderr.Close)
+		oldIn, oldErr := os.Stdin, os.Stderr
+		os.Stdin, os.Stderr = stdin, stderr
+		DeferCleanup(func() { os.Stdin, os.Stderr = oldIn, oldErr })
+		cmd := loginCmd()
+		cmd.SilenceErrors, cmd.SilenceUsage = true, true
+		cmd.SetContext(context.WithValue(context.Background(), interactiveKey, interactive))
+		cmd.SetArgs([]string{"--email", "test@example.test", "--password", "secret"})
+		err = cmd.Execute()
+		if !interactive {
+			Expect(err).To(MatchError(appstore.ErrAuthCodeRequired))
+			Expect(store.loginCalls).To(Equal(1))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(store.loginCalls).To(Equal(2))
+			Expect(store.input.TwoFactor != nil).To(Equal(delivery))
+			Expect(store.input.AuthCode).To(Equal(expectedCode))
+		}
+	},
+		Entry("existing code", "1\n123456\n", true, false, "123456"),
+		Entry("select delivery", "2\n", true, true, ""),
+		Entry("noninteractive challenge is failure", "", false, false, ""),
+	)
 })
 
 type fakeLoginAppStore struct {
 	appstore.AppStore
-	input      appstore.LoginInput
-	loginCalls int
+	input       appstore.LoginInput
+	loginCalls  int
+	loginErrors []error
 }
 
 func (f *fakeLoginAppStore) Login(input appstore.LoginInput) (appstore.LoginOutput, error) {
 	f.input = input
 	f.loginCalls++
+	if f.loginCalls <= len(f.loginErrors) {
+		return appstore.LoginOutput{}, f.loginErrors[f.loginCalls-1]
+	}
 
 	return appstore.LoginOutput{}, nil
 }

@@ -40,9 +40,11 @@ const (
 )
 
 type LoginInput struct {
-	Email    string
-	Password string
-	AuthCode string
+	Email         string
+	Password      string
+	AuthCode      string
+	TwoFactor     *TwoFactorPrompts
+	storePassword string
 	// Endpoint is deprecated. Login always uses the SAP configuration from
 	// Apple's current bag so unsigned or caller-selected fallbacks are impossible.
 	Endpoint string
@@ -53,6 +55,16 @@ type LoginOutput struct {
 }
 
 func (t *appstore) Login(input LoginInput) (LoginOutput, error) {
+	if input.TwoFactor != nil {
+		if input.AuthCode != "" {
+			return LoginOutput{}, errors.New("selectable delivery cannot be combined with an already supplied auth code")
+		}
+		pet, err := t.selectTwoFactor(input)
+		if err != nil {
+			return LoginOutput{}, err
+		}
+		input.storePassword = pet
+	}
 	if t.authBackend != nil {
 		return t.nativeLogin(input)
 	}
@@ -94,7 +106,11 @@ func (t *appstore) legacyLogin(input LoginInput) (LoginOutput, error) {
 		return LoginOutput{}, errors.New("SAP action signer factory returned nil")
 	}
 
-	acc, loginErr := t.login(input.Email, input.Password, authCode, guid, bag.SAPConfig.AuthEndpoint, signer)
+	storePassword := input.Password
+	if input.storePassword != "" {
+		storePassword = input.storePassword
+	}
+	acc, loginErr := t.login(input.Email, storePassword, authCode, guid, bag.SAPConfig.AuthEndpoint, signer)
 	closeErr := signer.Close()
 
 	if closeErr != nil {
@@ -107,6 +123,15 @@ func (t *appstore) legacyLogin(input LoginInput) (LoginOutput, error) {
 		}
 
 		return LoginOutput{}, loginErr
+	}
+	// A GrandSlam PET is only for the Store bridge, not the saved password.
+	acc.Password = input.Password
+	data, err := json.Marshal(acc)
+	if err != nil {
+		return LoginOutput{}, fmt.Errorf("encode account: %w", err)
+	}
+	if err := t.keychain.Set("account", data); err != nil {
+		return LoginOutput{}, fmt.Errorf("failed to save account in keychain: %w", err)
 	}
 
 	output := LoginOutput{Account: acc}
@@ -252,16 +277,6 @@ func (t *appstore) login(email, password, authCode, guid, endpoint string, signe
 		StoreFront:          sf,
 		Password:            password,
 		Pod:                 pod,
-	}
-
-	data, err := json.Marshal(acc)
-	if err != nil {
-		return Account{}, fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	err = t.keychain.Set("account", data)
-	if err != nil {
-		return Account{}, fmt.Errorf("failed to save account in keychain: %w", err)
 	}
 
 	return acc, nil

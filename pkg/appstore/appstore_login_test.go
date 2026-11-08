@@ -443,6 +443,12 @@ var _ = Describe("AppStore (Login)", func() {
 					Expect(out.Account.Name).To(Equal(strings.Join([]string{testFirstName, testLastName}, " ")))
 				})
 
+				It("saves the real password rather than the temporary Store PET", func() {
+					out, err := as.legacyLogin(LoginInput{Password: testPassword, storePassword: "temporary-pet"})
+					Expect(err).NotTo(HaveOccurred())
+					Expect(out.Account.Password).To(Equal(testPassword))
+				})
+
 				It("returns the persisted account with a signer cleanup error", func() {
 					cleanupErr := errors.New("cleanup failed")
 					signer.closeErr = cleanupErr

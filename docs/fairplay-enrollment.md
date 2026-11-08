@@ -117,6 +117,8 @@ logs in. The IPA is read only to select the exact external version.
 
 On Linux, 2026-11-08, fresh native AMD authorization and same-session keybag
 import/export passed for an existing licensed iOS app. The replay rejection
-control, normal suite, race checks and vet also passed. This verifies enrollment,
-not a fresh interactive login, an end-to-end IPA decrypt through this CLI, every
-app, other operating systems or other native profiles.
+control, normal suite, race checks and vet also passed. The user subsequently
+completed fresh interactive Store login/2FA and the toolkit's full IPA flow,
+including decryption and verification of all 15 encrypted ARM64 images. This
+does not establish support for every app, other operating systems or native
+profiles, or live validation of the newer selectable GrandSlam 2FA delivery.

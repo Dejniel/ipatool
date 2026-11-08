@@ -52,13 +52,38 @@ so a caller can expose login/2FA on the terminal. Without this flag, download
 retains its existing automatic-refresh policy. Enrollment never retries itself;
 known session/license failures are classified before private material import.
 
+Interactive 2FA offers either entering the code Apple already sent, or choosing
+a different delivery method. The latter runs a separate GrandSlam SRP handshake,
+lists Apple's masked trusted numbers, and requests SMS or a phone call for the
+explicitly selected number; trusted-device delivery is offered when available.
+There is no implicit first-number choice. Cancelling or rejecting the choice
+does not replace the saved Store account. `--auth-code` retains direct code entry,
+and noninteractive login fails with `auth-code-required` instead of reporting
+success when verification is required.
+
+The initial Store request can already trigger Apple's default delivery before
+the menu appears. Choosing another destination requests a new code there; it
+cannot undo an SMS/call Apple already initiated. GrandSlam option lookup can
+itself report an already-sent code (HTTP 201); that code is reused only when
+Apple identifies the exact chosen number and mode, never by assuming list order.
+
+GrandSlam uses the separate `authkit-anisette-v1` keyring entry, never the
+`store-amd-v1` provisioning database. Its temporary PET is exchanged for the
+ordinary Store session; the saved account still contains the original password.
+Challenge tokens and codes are not persisted or logged. This does not add a
+second toolkit command or require logging in for each application.
+
 ## Validation
 
 On Linux, anonymous native Store provisioning, AMD generation, reopening a saved
 identity in a separate process, and metadata-only Secret Service preflight have
 been verified. Native AMD was also accepted for a fresh licensed-app download
-authorization during enrollment. New Apple Account login/2FA on this fork has
-not yet been verified interactively; it is a separate validation boundary.
+authorization during enrollment. On 2026-11-08 the user also completed fresh
+interactive Store login/2FA and the toolkit's complete download/enrollment/
+decryption flow. The newly added selectable GrandSlam delivery has synthetic
+SRP/server, number/mode-selection, cancellation and privacy tests, but has not
+yet been exercised against a live account. Existing saved sessions are not
+cleared to force that test.
 
 Normal tests do not access accounts or provision identities. Opt-in runtime
 tests in `internal/storeauth` are gated by `IPATOOL_ADI_RUNTIME_TEST`,

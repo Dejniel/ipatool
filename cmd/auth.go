@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -64,14 +65,26 @@ func loginCmd() *cobra.Command {
 			dependencies.Logger.Log().Msg("preparing authentication; the first login may take a few minutes")
 
 			var lastErr error
+			var prompts *appstore.TwoFactorPrompts
 
 			// nolint:wrapcheck
 			return retry.Do(func() error {
 				if errors.Is(lastErr, appstore.ErrAuthCodeRequired) && interactive {
-					var err error
-					authCode, err = readPrompt("enter 2FA code: ", false)
+					choice, err := selectNumber(os.Stdin, os.Stderr, "Apple requires two-factor authentication:", []string{
+						"Enter the code Apple already sent",
+						"Choose a different number or SMS / phone call (GrandSlam)",
+					})
 					if err != nil {
-						return fmt.Errorf("failed to read auth code: %w", err)
+						return err
+					}
+					if choice == 0 {
+						authCode, err = readPrompt("enter 2FA code: ", false)
+						if err != nil {
+							return fmt.Errorf("failed to read auth code: %w", err)
+						}
+					} else {
+						prompts = deliveryPrompts()
+						dependencies.Logger.Log().Msg("preparing selectable 2FA; existing App Store session is retained until login succeeds")
 					}
 				}
 
@@ -81,15 +94,15 @@ func loginCmd() *cobra.Command {
 					Msg("logging in")
 
 				output, err := dependencies.AppStore.Login(appstore.LoginInput{
-					Email:    email,
-					Password: password,
-					AuthCode: authCode,
+					Email:     email,
+					Password:  password,
+					AuthCode:  authCode,
+					TwoFactor: prompts,
 				})
 				if err != nil {
 					if errors.Is(err, appstore.ErrAuthCodeRequired) && !interactive {
 						dependencies.Logger.Log().Msg("2FA code is required; run the command again and supply a code using the `--auth-code` flag")
-
-						return nil
+						return err
 					}
 
 					return err
@@ -110,7 +123,7 @@ func loginCmd() *cobra.Command {
 				retry.RetryIf(func(err error) bool {
 					lastErr = err
 
-					return errors.Is(err, appstore.ErrAuthCodeRequired)
+					return interactive && errors.Is(err, appstore.ErrAuthCodeRequired)
 				}),
 			)
 		},

@@ -16,7 +16,6 @@ var _ = Describe("Authentication redirects", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		client := apphttp.NewMockClient[loginResult](ctrl)
 		chain := keychain.NewMockKeychain(ctrl)
-		chain.EXPECT().Set("account", gomock.Any()).Return(nil)
 		sut := &appstore{loginClient: client, keychain: chain}
 		pod := "https://p7-buy.itunes.apple.com" + PrivateAppStoreAPIPathAuth
 		urls := []string{testAuthEndpoint, testAuthEndpoint + "/", pod, pod + "/", pod + "/?routing=opaque"}
