@@ -251,6 +251,7 @@ func (f *fakeSinfReplicator) ReplicateSinf(input appstore.ReplicateSinfInput) er
 }
 
 type fakeDownloadAppStore struct {
+	appstore.AppStore
 	account          appstore.Account
 	accountInfoCalls int
 	accountInfoError error

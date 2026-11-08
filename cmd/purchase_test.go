@@ -78,6 +78,7 @@ var _ = Describe("Purchase command", func() {
 })
 
 type fakePurchaseAppStore struct {
+	appstore.AppStore
 	lookupCalls   int
 	lookupInput   appstore.LookupInput
 	purchaseInput appstore.PurchaseInput

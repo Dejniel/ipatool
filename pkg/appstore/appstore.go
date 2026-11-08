@@ -32,6 +32,8 @@ type AppStore interface {
 	Purchase(input PurchaseInput) error
 	// Download downloads the app package from the App Store to the desired location.
 	Download(input DownloadInput) (DownloadOutput, error)
+	// Enroll creates private FairPlay state for a licensed app, without decrypting its IPA.
+	Enroll(input EnrollmentInput) (EnrollmentOutput, error)
 	// ReplicateSinf replicates the sinf for the IPA package.
 	ReplicateSinf(input ReplicateSinfInput) error
 	// VersionHistory lists the available versions of the specified app.
@@ -49,6 +51,7 @@ type appstore struct {
 	purchaseClient        http.Client[purchaseResult]
 	downloadClient        http.Client[downloadResult]
 	kbsyncGenerator       kbsyncGenerator
+	enrollmentFactory     enrollmentFactory
 	kbsyncCache           kbsyncCache
 	platformClient        http.Client[platformVersionLookupResult]
 	storefrontClient      http.Client[[]byte]
@@ -103,6 +106,7 @@ func NewAppStore(args Args) AppStore {
 		purchaseClient:      http.NewClient[purchaseResult](http.Args{CookieJar: args.CookieJar, Executor: backend.Client("purchase")}),
 		downloadClient:      http.NewClient[downloadResult](clientArgs),
 		kbsyncGenerator:     defaultKBSyncGenerator,
+		enrollmentFactory:   defaultEnrollmentFactory,
 		platformClient:      http.NewClient[platformVersionLookupResult](clientArgs),
 		storefrontClient:    http.NewClient[[]byte](clientArgs),
 		bagClient:           http.NewClient[bagResult](http.Args{CookieJar: args.CookieJar, Timeout: http.DefaultAuthenticationTimeout, Executor: backend.Client("bag-direct")}),

@@ -233,6 +233,7 @@ type downloadItemResult struct {
 }
 
 type downloadResult struct {
+	Keybag          []byte               `plist:"keybag,omitempty"`
 	FailureType     string               `plist:"failureType,omitempty"`
 	CustomerMessage string               `plist:"customerMessage,omitempty"`
 	Items           []downloadItemResult `plist:"songList,omitempty"`
